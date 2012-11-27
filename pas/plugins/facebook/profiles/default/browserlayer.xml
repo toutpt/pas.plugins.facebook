@@ -1,0 +1,6 @@
+<layers>
+<!-- uncomment to activate
+    <layer name="pas.plugins.facebook"
+           interface="pas.plugins.facebook.interfaces.ILayer" />
+-->
+</layers>

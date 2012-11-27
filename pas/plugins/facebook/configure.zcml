@@ -1,0 +1,22 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+    i18n_domain="pas.plugins.facebook">
+
+  <browser:resourceDirectory
+    name="pas.plugins.facebook"
+    directory="resources"
+    />
+
+  <include file="upgrades.zcml"/>
+
+  <genericsetup:registerProfile
+      name="default"
+      title="pas.plugins.facebook"
+      directory="profiles/default"
+      description='Extension profile for pas.plugins.facebook.'
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      />
+
+</configure>
