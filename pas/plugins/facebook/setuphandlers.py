@@ -15,7 +15,9 @@ def setupPasPlugin(context):
         pas._setObject(plugin_id, manager)
 
     provider = pas[plugin_id]
-    provider.manage_activateInterfaces(['IUserEnumerationPlugin',
+    provider.manage_activateInterfaces(['IAuthenticationPlugin',
+                                        'IExtractionPlugin',
+                                        'IUserEnumerationPlugin',
                                         'IPropertiesPlugin'])
 
     #because default plone properties plugin mask any other, 

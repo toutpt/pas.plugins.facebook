@@ -1,6 +1,9 @@
 import logging
+import urllib
+import urlparse
 logger = logging.getLogger('pas.plugins.facebook')
 import copy
+import json
 
 from Products.PluggableAuthService import plugins
 from Products.PluggableAuthService import interfaces
@@ -15,14 +18,49 @@ from zope import interface
 from AccessControl import ClassSecurityInfo
 from Products.CMFCore.utils import getToolByName
 
+from pas.plugins.facebook.login_page import AuthenticatedUserBasicInfo
+
+
+class UserProperties(object):
+    def __init__(self, username, token):
+        graph_url = "https://graph.facebook.com/%s?access_token=%s"
+        self.username = username
+        self.token = token
+        self.graph_url =   graph_url % (username, token)
+        self.user_info = {}
+
+    def update(self):
+        self.update_token()
+        self.user_info = json.loads(urllib.urlopen(self.graph_url).read())
+
+    def update_token(self):
+        if self.token.startswith('access_token'):
+            query = urlparse.parse_qs(self.token)
+            self.token = query['access_token'][0]
+            self.expire = ""
+
+    def __getattribute__(self, name):
+        try:
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            pass
+        try:
+            return self.user_info[name]
+        except KeyError:
+            raise AttributeError(name)
+
+
 class IPASPlugin(interface.Interface):
     """Marker interface"""
+
 
 class PASPlugin(plugins.BasePlugin.BasePlugin):
     """This plugin check if the current user"""
 
-    interface.implements(interfaces.plugins.IUserEnumerationPlugin,
+    interface.implements(interfaces.plugins.IAuthenticationPlugin,
+                         interfaces.plugins.IUserEnumerationPlugin,
                          interfaces.plugins.IPropertiesPlugin,
+                         interfaces.plugins.IExtractionPlugin,
                          IPASPlugin)
 
     meta_type = 'Facebook IPropertiesPlugin'
@@ -40,6 +78,26 @@ class PASPlugin(plugins.BasePlugin.BasePlugin):
         if self._activated is not None:
             return self._activated
         return True
+
+    security.declarePrivate('extractCredentials')
+    def extractCredentials(self, request):
+        if not 'facebook_token' in request.cookies:
+            return
+        info = {}
+        info['facebook_token'] = request.cookies['facebook_token']
+        info['facebook_userid'] = request.cookies['facebook_userid']
+        info['facebook_username'] = request.cookies['facebook_username']
+        return info
+
+    security.declarePrivate('authenticateCredentials')
+    def authenticateCredentials(self, credentials):
+        """See IAuthenticationPlugin."""
+        username = credentials.get("facebook_username")
+        userid= credentials.get("facebook_userid")
+        if username is None:
+            return None
+        else:
+            return userid, username
 
     security.declarePrivate('enumerateUsers')
     def enumerateUsers( self
@@ -86,7 +144,7 @@ class PASPlugin(plugins.BasePlugin.BasePlugin):
                 continue
             qs = 'user_id=%s' % i
             info = { 'id' : i
-                      , 'login' : i
+                      , 'login' : i #TODO: push username here
                       , 'pluginid' : plugin_id
                       , 'editurl' : '%s?%s' % (e_url, qs)
                    } 
@@ -103,19 +161,19 @@ class PASPlugin(plugins.BasePlugin.BasePlugin):
         """ See IPropertiesPlugin.
         """
         if not self.activated:return {}
-
+        user_id = user.getUserId()
         user_name = user.getUserName()
 
-        #TODO: do the search ?
-        results = []
         properties = {}
-
-        for result in results:
-            if result['user_name'] == user_name:
-                properties= {'email': str(result.get('email_address'))
-                        , 'fullname': unicode(result.get('first_name')) + u' ' + unicode(result.get('last_name'))
+        if user_id in self.facebook_token:
+            token = self.facebook_token[user_id]
+            user = UserProperties(user_name, token)
+            user.update()
+#            import pdb;pdb.set_trace()
+            properties= {'email': user.email,
+                         'fullname': user.name
                         }
-
+        logger.info(properties)
         return properties
 
     def addToBlacklist(self, key):

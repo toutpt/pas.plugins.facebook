@@ -60,6 +60,11 @@ class LoggedIn(BrowserView):
         if user.id not in tokens or tokens[user.id] != user.token:
             tokens[user.id] = user.token_raw
 
+        #add token_raw to a cookie
+        self.request.response.setCookie('facebook_token', user.token_raw)
+        self.request.response.setCookie('facebook_username', user.username)
+        self.request.response.setCookie('facebook_userid', user.id)
+
 
 class TokenExtractor(object):
     def __init__(self, context, request):
