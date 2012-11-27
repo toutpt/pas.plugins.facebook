@@ -4,11 +4,6 @@
     xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
     i18n_domain="pas.plugins.facebook">
 
-  <browser:resourceDirectory
-    name="pas.plugins.facebook"
-    directory="resources"
-    />
-
   <include file="upgrades.zcml"/>
 
   <genericsetup:registerProfile
@@ -18,5 +13,25 @@
       description='Extension profile for pas.plugins.facebook.'
       provides="Products.GenericSetup.interfaces.EXTENSION"
       />
+
+  <genericsetup:importStep
+        name="pas.plugins.facebook"
+        title="pas.plugins.facebook:setupPasPlugin"
+        description="Setup Pas plugin"
+        handler=".setuphandlers.setupPasPlugin">
+    <depends name="plone-final" />
+  </genericsetup:importStep>
+
+  <browser:page
+    name="login_facebook"
+    for="*"
+    class=".login_page.Login"
+    permission="zope2.View"/>
+
+  <browser:page
+    name="loggedin_facebook"
+    for="*"
+    class=".login_page.LoggedIn"
+    permission="zope2.View"/>
 
 </configure>

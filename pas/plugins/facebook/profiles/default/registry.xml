@@ -1,0 +1,5 @@
+<registry>
+
+<records interface="pas.plugins.facebook.oauthdialog.IFacebookAppSettings"/>
+
+</registry>
