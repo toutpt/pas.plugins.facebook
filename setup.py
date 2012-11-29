@@ -30,7 +30,7 @@ setup(name='pas.plugins.facebook',
       zip_safe=False,
       install_requires=[
           'setuptools',
-          'oauth2',
+          'facebook-sdk',
           # -*- Extra requirements: -*-
       ],
       entry_points="""

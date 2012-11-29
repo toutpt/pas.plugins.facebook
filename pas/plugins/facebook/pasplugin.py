@@ -1,24 +1,26 @@
+#python
 import logging
 import urllib
 import urlparse
-logger = logging.getLogger('pas.plugins.facebook')
 import copy
 import json
 
+#zope
+from zope import component
+from zope import interface
+from AccessControl import ClassSecurityInfo
+from App.class_init import InitializeClass
+from BTrees.OOBTree import OOBTree
+from OFS.Cache import Cacheable
+from Products.CMFCore.utils import getToolByName
 from Products.PluggableAuthService import plugins
 from Products.PluggableAuthService import interfaces
 from Products.PluggableAuthService import utils
 
-from App.class_init import InitializeClass
-from OFS.Cache import Cacheable
+#internal
+from pas.plugins.facebook import facebookview
 
-from zope import component
-from zope import interface
-
-from AccessControl import ClassSecurityInfo
-from Products.CMFCore.utils import getToolByName
-
-from pas.plugins.facebook.login_page import AuthenticatedUserBasicInfo
+logger = logging.getLogger('pas.plugins.facebook')
 
 
 class UserProperties(object):
@@ -71,6 +73,7 @@ class PASPlugin(plugins.BasePlugin.BasePlugin):
         self.title = title
         self._activated = None
         self._v_blacklist_ids = []
+        self.facebook_accounts = OOBTree()
 
     @property
     def activated(self):
@@ -81,12 +84,11 @@ class PASPlugin(plugins.BasePlugin.BasePlugin):
 
     security.declarePrivate('extractCredentials')
     def extractCredentials(self, request):
-        if not 'facebook_token' in request.cookies:
-            return
+        fb = facebookview.FacebookView(self, self.REQUEST)
+        user = fb.get_user_from_cookie()
+
         info = {}
-        info['facebook_token'] = request.cookies['facebook_token']
-        info['facebook_userid'] = request.cookies['facebook_userid']
-        info['facebook_username'] = request.cookies['facebook_username']
+
         return info
 
     security.declarePrivate('authenticateCredentials')
@@ -132,8 +134,8 @@ class PASPlugin(plugins.BasePlugin.BasePlugin):
             if self.isInBlacklist(i):
                 continue
             logger.info('enumerateUsers not cached %s'%i)
-            if i in self.facebook_token:
-                res[i] = self.facebook_tokens[i]
+            if i in self.facebook_accounts:
+                res[i] = self.facebook_accounts[i]
 
         user_info = []
         plugin_id = self.getId()
@@ -165,8 +167,8 @@ class PASPlugin(plugins.BasePlugin.BasePlugin):
         user_name = user.getUserName()
 
         properties = {}
-        if user_id in self.facebook_token:
-            token = self.facebook_token[user_id]
+        if user_id in self.facebook_accounts:
+            token = self.facebook_accounts[user_id]
             user = UserProperties(user_name, token)
             user.update()
 #            import pdb;pdb.set_trace()

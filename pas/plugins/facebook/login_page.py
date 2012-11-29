@@ -17,22 +17,23 @@ from Products.CMFCore.utils import getToolByName
 from pas.plugins.facebook.oauthdialog import LoginURLBuilder, IFacebookAppSettings
 from pas.plugins.facebook import i18n
 from pas.plugins.facebook import permissions
+from pas.plugins.facebook import facebookview
 
 _ = i18n.facebook_message_factory
 
 
-class Login(BrowserView):
+class Login(facebookview.FacebookView):
     """login page"""
 
     def __call__(self):
-        url_builder = LoginURLBuilder(self.context, self.request)
-        url = self.context.absolute_url()
-        url_builder.redirect_uri = '%s/loggedin_facebook' % url
-        self.request.response.redirect(url_builder.get_login_url())
+        """doc string"""
+        self.update()
+        self.redirect_uri = '%s/loggedin_facebook' % self.context.absolute_url()
+        self.request.response.redirect(self.auth_url())
         return u""
 
 
-class LoggedIn(BrowserView):
+class LoggedIn(facebookview.FacebookView):
     """save the token to session used by the pas plugin"""
     def __call__(self):
         self.update()
@@ -42,77 +43,27 @@ class LoggedIn(BrowserView):
         return u""
 
     def update(self):
+        super(LoggedIn, self).update()
         #code is in the request, we should get the token, lets use this one
         self.sudo_save()
 
-    def sudo_save(self, ):
+    def sudo_save(self):
         """store the token associate to this userid"""
-        user = AuthenticatedUserBasicInfo(self.context, self.request)
-        user.update()
+        code = self.request.get('code', '')
+        token_info = self.get_access_token_from_code(code)
+        self.access_token = token_info
+        user = self.get_object("me")
+        user_id = user["id"]
+
         #get the plugin and do a save of this userid: token entry
         acl_users = getToolByName(self.context, 'acl_users')
         admin=acl_users.getUserById('facebook')
         newSecurityManager(self.request, admin)
-        tokens = getattr(acl_users.facebook, 'facebook_token', None)
-        if not tokens:
-            acl_users.facebook.facebook_token = {}
-            tokens = acl_users.facebook.facebook_token
-        if user.id not in tokens or tokens[user.id] != user.token:
-            tokens[user.id] = user.token_raw
-
-        #add token_raw to a cookie
-        self.request.response.setCookie('facebook_token', user.token_raw)
-        self.request.response.setCookie('facebook_username', user.username)
-        self.request.response.setCookie('facebook_userid', user.id)
+        tokens = acl_users.facebook.facebook_accounts
+        if user_id not in tokens or tokens[user_id] != user.token:
+            tokens[user_id] = self.access_token
 
 
-class TokenExtractor(object):
-    def __init__(self, context, request):
-        self.context = context
-        self.request = request
-        self.code = None
-        self.token = None
-        self.token_raw = ""
-        self.expire = None
-
-    def update(self):
-        if not self.code and not self.token:
-            self.code = self.request.form.get('code', None)
-        if self.code and not self.token:
-            self.update_token()
-
-    def update_token(self):
-        url_builder = LoginURLBuilder(self.context, self.request)
-        url_builder.code = self.code
-        url = self.context.absolute_url()
-        url_builder.redirect_uri = '%s/loggedin_facebook' % url
-        filehandle = urllib.urlopen(url_builder.get_token_url())
-        
-        qs = filehandle.read()
-        query = urlparse.parse_qs(qs)
-        if 'access_token' in query:
-            self.token = query['access_token'][0]
-            self.token_raw = qs
-#            self.expire = query['expire']
-
-
-class AuthenticatedUserBasicInfo(TokenExtractor):
-    def __init__(self, context, request):
-        TokenExtractor.__init__(self, context, request)
-        self._user = None
-
-    def update(self):
-        TokenExtractor.update(self)
-        if self._user is None and self.token:
-            self._user = self._get_user()
-
-    def _get_user(self):
-        graph_url = "https://graph.facebook.com/me?access_token="+self.token
-        user = json.loads(urllib.urlopen(graph_url).read())
-        return user
-
-    def __getattribute__(self, name):
-        if name in permissions.basic_info_list and self._user:
-            return self._user[name]
-        return object.__getattribute__(self, name)
-
+class Loggout(BrowserView):
+    def __call__(self):
+        self.request.response.expireCookie("fb_user")
